@@ -230,20 +230,28 @@ class EagleSpeculator:
         pos: torch.Tensor,
         step: int,
     ) -> torch.Tensor:
-        if self.draft_logits is not None:
-            # NOTE(woosuk): We must add 1 to the positions to match the Gumbel noise
-            # used for draft and target sampling.
-            return gumbel_sample(
-                logits,
-                idx_mapping,
-                self.temperature,
-                self.seeds,
-                pos + 1,
-                apply_temperature=True,
-                processed_logits_out=self.draft_logits[:, step],
-            )
-        else:
+        draft_sample_method = self.speculative_config.draft_sample_method
+        if draft_sample_method == "greedy":
             return logits.argmax(dim=-1)
+
+        if draft_sample_method == "gumbel":
+            assert self.draft_logits is not None
+            processed_logits_out = self.draft_logits[:, step]
+        else:
+            assert draft_sample_method == "sample_one_hot"
+            processed_logits_out = None
+
+        # NOTE(woosuk): We must add 1 to the positions to match the Gumbel noise
+        # used for draft and target sampling.
+        return gumbel_sample(
+            logits,
+            idx_mapping,
+            self.temperature,
+            self.seeds,
+            pos + 1,
+            apply_temperature=True,
+            processed_logits_out=processed_logits_out,
+        )
 
     def prefill(
         self,
